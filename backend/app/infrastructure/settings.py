@@ -14,8 +14,9 @@ class Settings(BaseSettings):
     searxng_url: str = Field(default="https://searxng.site")
 
     # AI keys (optional depending on provider)
-    openai_api_key: Optional[str] = Field(default=None)
-    hf_token: Optional[str] = Field(default=None)
+    grok_api_key: Optional[str] = Field(default=None, description="xAI Grok API key")
+    openai_api_key: Optional[str] = Field(default=None, description="OpenAI API key (optional)")
+    hf_token: Optional[str] = Field(default=None, description="HuggingFace token (optional)")
 
     # Server config
     request_timeout_seconds: float = Field(default=10.0)

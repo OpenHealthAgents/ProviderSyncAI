@@ -73,7 +73,8 @@ The frontend will be available at `http://localhost:5173`
 
 Key environment variables:
 
-- `OPENAI_API_KEY` or `HF_TOKEN`: Required for Smolagents LLM functionality
+- `GROK_API_KEY`: Required for Grok AI functionality (xAI API key)
+- `OPENAI_API_KEY` or `HF_TOKEN`: Optional alternative LLM providers
 - `SEARXNG_URL`: SearXNG instance URL (default: https://searxng.site)
 - `NPPES_BASE_URL`: NPPES API base URL (default: https://npiregistry.cms.hhs.gov/api)
 - `CACHE_TTL_SECONDS`: Cache TTL in seconds (default: 300)

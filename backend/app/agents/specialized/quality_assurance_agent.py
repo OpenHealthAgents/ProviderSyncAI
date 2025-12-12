@@ -1,29 +1,39 @@
-"""Quality Assurance Agent for discrepancy detection."""
-from typing import List
-from smolagents import CodeAgent, Tool
+"""Quality Assurance Agent node for discrepancy detection."""
+from typing import Dict, Any, List
+from langchain_core.messages import HumanMessage
+from langgraph.prebuilt import create_react_agent
+
 from ...domain.enriched_entities import EnrichedProvider, ValidationStatus
 from ...infrastructure.models.grok_model import GrokModel
-from ..tools.nppes_tool import NppesTool
 from ...infrastructure.logging import get_logger
+from ..tools.nppes_tool import NppesTool
+from ..state import AgentState
 
 
 logger = get_logger(__name__)
 
+async def quality_assurance_node(state: AgentState) -> Dict[str, Any]:
+    """
+    Node for assessing data quality and detecting discrepancies.
+    """
+    logger.info("quality_assurance_node_start")
+    
+    provider_data = state.get("provider_data", {})
+    if isinstance(provider_data, dict):
+        provider = EnrichedProvider(**provider_data)
+    else:
+        provider = provider_data
 
-class QualityAssuranceAgent:
-    """Agent for quality assurance and discrepancy detection."""
+    logger.info("assessing_quality", npi=provider.npi)
+
+    # Tools and Model
+    tools = [NppesTool()]
+    model = GrokModel()
     
-    def __init__(self, model: GrokModel):
-        tools: List[Tool] = [
-            NppesTool(),
-        ]
-        self.agent = CodeAgent(tools=tools, model=model, name="quality_assurance_agent")
-    
-    async def assess_quality(self, provider: EnrichedProvider) -> EnrichedProvider:
-        """Assess provider data quality and detect discrepancies."""
-        logger.info("assessing_quality", npi=provider.npi)
-        
-        prompt = f"""Assess data quality for provider {provider.first_name} {provider.last_name} (NPI: {provider.npi}).
+    # Agent
+    agent = create_react_agent(model, tools)
+
+    prompt = f"""Assess data quality for provider {provider.first_name} {provider.last_name} (NPI: {provider.npi}).
 
 Provider data:
 - Contact: {provider.phone}, {provider.email}
@@ -44,28 +54,42 @@ Return assessment with:
 - Review priority
 - Flags for manual review
 """
-        
-        try:
-            result = await self.agent.run(prompt)
+
+    # Run agent
+    messages = [HumanMessage(content=prompt)]
+    result = await agent.ainvoke({"messages": messages})
+    
+    last_message = result['messages'][-1]
+    
+    # Post-process logic from original code
+    # Existing logic blindly checks confidence scores regardless of agent output.
+    # We will preserve that logic as a fallback or enhancement.
+    
+    validated_discrepancies = []
+    
+    if provider.overall_confidence < 0.6:
+        provider.requires_manual_review = True
+        provider.review_priority = 8
+        provider.validation_status = ValidationStatus.FLAGGED
+        validated_discrepancies.append("Low confidence score detected")
+    
+    if provider.phone_confidence < 0.5 or provider.email_confidence < 0.5:
+        validated_discrepancies.append("Contact information has low confidence")
+        provider.requires_manual_review = True
+        if provider.review_priority < 7:
+            provider.review_priority = 7
+    
+    # Merge existing discrepancies with new ones
+    if validated_discrepancies:
+        # Check if attribute exists and is list
+        if not hasattr(provider, 'discrepancies') or provider.discrepancies is None:
+            provider.discrepancies = []
+        provider.discrepancies.extend(validated_discrepancies)
             
-            # Process assessment results
-            # Check for discrepancies
-            if provider.overall_confidence < 0.6:
-                provider.requires_manual_review = True
-                provider.review_priority = 8
-                provider.validation_status = ValidationStatus.FLAGGED
-                provider.discrepancies.append("Low confidence score detected")
-            
-            # Check for data inconsistencies
-            if provider.phone_confidence < 0.5 or provider.email_confidence < 0.5:
-                provider.discrepancies.append("Contact information has low confidence")
-                provider.requires_manual_review = True
-                if provider.review_priority < 7:
-                    provider.review_priority = 7
-            
-            logger.info("quality_assessed", npi=provider.npi, priority=provider.review_priority)
-            return provider
-        except Exception as e:
-            logger.error("quality_assessment_failed", npi=provider.npi, error=str(e))
-            return provider
+    logger.info("quality_assessed", npi=provider.npi, priority=provider.review_priority)
+    
+    return {
+        "provider_data": provider.model_dump(),
+        "messages": [last_message]
+    }
 

@@ -1,22 +1,29 @@
 """State licensing board lookup tool."""
-from smolagents import Tool
-from typing import Optional
+from typing import Optional, Type, Any
+from langchain.tools import BaseTool
+from pydantic import BaseModel, Field
 from ...infrastructure.http import get
 from ...infrastructure.logging import get_logger
 
 
 logger = get_logger(__name__)
 
+class StateLicensingInput(BaseModel):
+    license_number: str = Field(..., description="License number")
+    state: str = Field(..., description="State code")
+    license_type: str = Field(default="MD", description="License type")
 
-class StateLicensingTool(Tool):
+class StateLicensingTool(BaseTool):
     """Look up provider license information from state medical boards."""
     
-    name = "state_license_lookup"
-    description = "Look up provider license information from state medical board websites"
-    inputs = {"license_number": str, "state": str, "license_type": str}
-    output_type = "json"
+    name: str = "state_license_lookup"
+    description: str = "Look up provider license information from state medical board websites"
+    args_schema: Type[BaseModel] = StateLicensingInput
     
-    async def __call__(self, license_number: str, state: str, license_type: str = "MD"):
+    def _run(self, **kwargs: Any) -> Any:
+        raise NotImplementedError("Use async run instead")
+    
+    async def _arun(self, license_number: str, state: str, license_type: str = "MD") -> Any:
         """Look up license information."""
         try:
             # Note: This is a placeholder - actual implementation would need

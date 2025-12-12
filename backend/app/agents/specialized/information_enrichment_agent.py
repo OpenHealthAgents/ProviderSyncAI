@@ -1,33 +1,48 @@
-"""Information Enrichment Agent for adding provider data."""
-from typing import List
-from smolagents import CodeAgent, Tool
+"""Information Enrichment Agent node for adding provider data."""
+from typing import Dict, Any
+from langchain_core.messages import HumanMessage
+from langgraph.prebuilt import create_react_agent
+
 from ...domain.enriched_entities import EnrichedProvider
 from ...infrastructure.models.grok_model import GrokModel
+from ...infrastructure.logging import get_logger
 from ..tools.nppes_tool import NppesTool
 from ..tools.web_search_tool import WebSearchTool
 from ..tools.state_licensing_tool import StateLicensingTool
-from ...infrastructure.logging import get_logger
+from ..state import AgentState
 
 
 logger = get_logger(__name__)
 
+async def information_enrichment_node(state: AgentState) -> Dict[str, Any]:
+    """
+    Node for enriching provider information from multiple sources.
+    """
+    logger.info("information_enrichment_node_start")
+    
+    # Extract provider data
+    provider_data = state.get("provider_data", {})
+    if isinstance(provider_data, dict):
+        provider = EnrichedProvider(**provider_data)
+    else:
+        provider = provider_data
 
-class InformationEnrichmentAgent:
-    """Agent for enriching provider information from multiple sources."""
+    logger.info("enriching_provider", npi=provider.npi)
+
+    # Initialize tools
+    tools = [
+        NppesTool(),
+        WebSearchTool(),
+        StateLicensingTool(),
+    ]
+
+    # Initialize model
+    model = GrokModel()
     
-    def __init__(self, model: GrokModel):
-        tools: List[Tool] = [
-            NppesTool(),
-            WebSearchTool(),
-            StateLicensingTool(),
-        ]
-        self.agent = CodeAgent(tools=tools, model=model, name="information_enrichment_agent")
-    
-    async def enrich_provider(self, provider: EnrichedProvider) -> EnrichedProvider:
-        """Enrich provider with additional information."""
-        logger.info("enriching_provider", npi=provider.npi)
-        
-        prompt = f"""Enrich provider information for {provider.first_name} {provider.last_name} (NPI: {provider.npi}).
+    # Create agent
+    agent = create_react_agent(model, tools)
+
+    prompt = f"""Enrich provider information for {provider.first_name} {provider.last_name} (NPI: {provider.npi}).
 
 Current information:
 - Name: {provider.first_name} {provider.last_name}
@@ -48,14 +63,28 @@ Return enriched information including:
 - Network affiliations
 - Services offered
 """
-        
-        try:
-            result = await self.agent.run(prompt)
-            # Process and update provider with enriched data
-            # This would parse the agent result and update provider fields
-            logger.info("provider_enriched", npi=provider.npi)
-            return provider
-        except Exception as e:
-            logger.error("enrichment_failed", npi=provider.npi, error=str(e))
-            return provider
+
+    # Run agent
+    messages = [HumanMessage(content=prompt)]
+    result = await agent.ainvoke({"messages": messages})
+    
+    last_message = result['messages'][-1]
+    response_text = last_message.content
+
+    # Placeholder: Parse response_text into structured fields
+    # For now, we trust the agent to report these findings and we append to notes or similar.
+    # Ideally should use structured output.
+    
+    # Assuming we want to capture this enrichment in the provider object somehow.
+    # The existing code didn't actually implement parsing, just the prompt.
+    
+    # Let's save the summary to a new field or just log it.
+    # provider.enrichment_notes = response_text # (If such field existed)
+
+    logger.info("provider_enriched", npi=provider.npi)
+    
+    return {
+        "provider_data": provider.model_dump(),
+        "messages": [last_message]
+    }
 

@@ -1,7 +1,8 @@
 """Web scraping tool for provider websites."""
-from typing import Optional
+from typing import Optional, Type, Any
 import re
-from smolagents import Tool
+from langchain.tools import BaseTool
+from pydantic import BaseModel, Field
 from bs4 import BeautifulSoup
 from ...infrastructure.http import get
 from ...infrastructure.logging import get_logger
@@ -9,16 +10,20 @@ from ...infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
 
+class WebScrapingInput(BaseModel):
+    url: str = Field(..., description="URL to scrape")
 
-class WebScrapingTool(Tool):
+class WebScrapingTool(BaseTool):
     """Scrape provider website for contact information."""
     
-    name = "web_scrape_provider"
-    description = "Scrape a provider's website for contact information, phone, email, address, and services"
-    inputs = {"url": str}
-    output_type = "json"
+    name: str = "web_scrape_provider"
+    description: str = "Scrape a provider's website for contact information, phone, email, address, and services"
+    args_schema: Type[BaseModel] = WebScrapingInput
     
-    async def __call__(self, url: str):
+    def _run(self, **kwargs: Any) -> Any:
+        raise NotImplementedError("Use async run instead")
+    
+    async def _arun(self, url: str) -> Any:
         """Scrape provider website."""
         try:
             resp = await get(url)
@@ -66,7 +71,7 @@ class WebScrapingTool(Tool):
             return filtered[0] if filtered else emails[0]
         return None
     
-    def _extract_address(self, soup: BeautifulSoup) -> Optional[str]:
+    def _extract_address(self, soup: BeautifulSoup, html: str) -> Optional[str]:
         """Extract address."""
         # Look for address in structured data
         for tag in soup.find_all(['address', 'div', 'span'], class_=re.compile(r'address|location', re.I)):

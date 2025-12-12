@@ -1,23 +1,31 @@
 """Google Maps/Places API tool."""
-from smolagents import Tool
-from typing import Optional
+from typing import Optional, Type, Any
+from langchain.tools import BaseTool
+from pydantic import BaseModel, Field
 from ...infrastructure.settings import settings
 from ...infrastructure.logging import get_logger
 
 
 logger = get_logger(__name__)
 
+class GoogleMapsInput(BaseModel):
+    provider_name: str = Field(..., description="Provider's name")
+    address: Optional[str] = Field(None, description="Street address")
+    city: Optional[str] = Field(None, description="City")
+    state: Optional[str] = Field(None, description="State abbreviation")
 
-class GoogleMapsTool(Tool):
+class GoogleMapsTool(BaseTool):
     """Look up provider location information from Google Maps/Places."""
     
-    name = "google_maps_lookup"
-    description = "Look up provider location, phone, and business information from Google Maps"
-    inputs = {"provider_name": str, "address": str, "city": str, "state": str}
-    output_type = "json"
+    name: str = "google_maps_lookup"
+    description: str = "Look up provider location, phone, and business information from Google Maps"
+    args_schema: Type[BaseModel] = GoogleMapsInput
     
-    async def __call__(self, provider_name: str, address: Optional[str] = None, 
-                      city: Optional[str] = None, state: Optional[str] = None):
+    def _run(self, **kwargs: Any) -> Any:
+        raise NotImplementedError("Use async run instead")
+
+    async def _arun(self, provider_name: str, address: Optional[str] = None, 
+                      city: Optional[str] = None, state: Optional[str] = None) -> Any:
         """Look up Google Maps information."""
         try:
             # Note: This requires Google Places API key

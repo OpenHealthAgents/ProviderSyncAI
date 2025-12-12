@@ -1,21 +1,24 @@
-"""Directory Management Agent for reports and alerts."""
-from typing import List, Dict, Any
-from smolagents import CodeAgent
-from ...domain.enriched_entities import ValidationReport, ValidationBatch, EnrichedProvider
-from ...infrastructure.models.grok_model import GrokModel
-from ...infrastructure.logging import get_logger
+"""Directory Management logic for reports and alerts."""
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 import uuid
+
+from ...domain.enriched_entities import ValidationReport, ValidationBatch, EnrichedProvider
+from ...infrastructure.logging import get_logger
 
 
 logger = get_logger(__name__)
 
+# This module doesn't strictly need to be a Graph Node if it acts on batches,
+# but we can expose functions that can be called by a Supervisor if needed.
+# For now, we update it to remove smolagents dependency.
 
-class DirectoryManagementAgent:
-    """Agent for directory management, reporting, and alerts."""
+class DirectoryManagementService:
+    """Service for directory management, reporting, and alerts."""
     
-    def __init__(self, model: GrokModel):
-        self.agent = CodeAgent(tools=[], model=model, name="directory_management_agent")
+    def __init__(self):
+        # No model needed for deterministic logic
+        pass
     
     async def generate_report(self, batch: ValidationBatch, providers: List[EnrichedProvider]) -> ValidationReport:
         """Generate validation report."""
@@ -72,4 +75,7 @@ class DirectoryManagementAgent:
             "message": f"Provider {provider.npi} requires {alert_type}",
             "created_at": datetime.utcnow().isoformat(),
         }
+
+# Optional: If we want to expose this as a node in the graph (e.g. for a "Reporting" phase)
+# we can wrap it. But since it takes a batch, it might not fit the per-provider graph.
 
